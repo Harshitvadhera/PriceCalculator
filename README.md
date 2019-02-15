@@ -27,3 +27,6 @@ First Install gin-gonic
               `This is The Response Returned When We Look For Products With Their Expiry`
               
 ![alt text](https://github.com/Harshitvadhera/PriceCalculator/blob/master/Expiry.png)
+
+              This is The Response Returned When We Look For a Product Viewer
+![alt text](https://github.com/Harshitvadhera/PriceCalculator/blob/master/Ideal.png)
