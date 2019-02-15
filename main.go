@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +21,13 @@ var expiring []map[string]interface{}
 var expired []map[string]interface{}
 var active []map[string]interface{}
 var new map[string][]int
-var val map[string][]int
+var pos int
+var sum int
+var high int
+var low int
+var priceCount int
+var average int
+var collec map[string][]int
 
 func main() {
 
@@ -31,15 +36,16 @@ func main() {
 	r.GET("/admin", adminView)
 	r.PUT("/change", changePrice)
 	r.GET("/find", findProduct)
+	r.GET("/view", viewProduct)
 	r.Run(":8080") // listen and serve on 0.0.0.0:8080
 
 }
 
 //This function Views all the Products Categorized on Their expiry
-//Parameters Should be provided as Query String in Postman
+//Parameters Should be provided as Post Form data in Postman
 /*
 Parameters:
-productcode string
+store string
 */
 func adminView(c *gin.Context) {
 
@@ -48,14 +54,13 @@ func adminView(c *gin.Context) {
 	Year, month, day := getDate(cDate)
 
 	for i := 0; i < len(data); i++ {
-		if data[i].ProductCode == c.Query("productcode") {
+		if data[i].Store == c.PostForm("store") {
 			pYear, pmonth, pday := getDate(data[i].ProductExpiryDate)
 			start := time.Date(pYear, pmonth, pday, 0, 0, 0, 0, time.UTC)
 			end := time.Date(Year, month, day, 0, 0, 0, 0, time.UTC)
 			difference := start.Sub(end).String()
 			difftostr := strings.Split(difference, "h")
 			hours, _ := strconv.Atoi(difftostr[0])
-			fmt.Println(hours)
 			if hours == 0 || hours < 0 {
 				expired = append(expired, map[string]interface{}{"Info": data[i],
 					"status": "Expired",
@@ -139,15 +144,37 @@ productcode string
 func changePrice(c *gin.Context) {
 	newprice, _ := strconv.Atoi(c.PostForm("newprice"))
 	code := c.PostForm("productcode")
-	if new[code] == nil {
-		new = map[string][]int{code: []int{newprice}}
-	} else {
-		new[code] = append(new[code], newprice)
-	}
-	var sum int
-	fmt.Println(new, len(new[code]))
 
-	fmt.Println(sum / len(new[code]))
+	for i := 0; i < len(data); i++ {
+		if data[i].ProductCode == code {
+			pos = i
+			sum = data[i].Price
+			high = data[i].Price
+			low = data[i].Price
+			sum = newprice + sum
+			priceCount = priceCount + 1
+
+			if !(high > newprice) {
+				high = newprice
+			}
+			if !(low < newprice) {
+				low = newprice
+			}
+			new = map[string][]int{
+				code: append(new[code], newprice),
+			}
+			collec = new
+
+		}
+	}
+	average = (sum / (priceCount + 1))
+	c.JSON(200, gin.H{
+		"Info":          data[pos],
+		"Average Price": average,
+		"High Price":    high,
+		"Low Price":     low,
+	})
+
 }
 
 //This function splits the date into year month and days
@@ -158,4 +185,45 @@ func getDate(value string) (int, time.Month, int) {
 	Month := time.Month(month)
 	day, _ := strconv.Atoi(date[2])
 	return Year, Month, day
+}
+
+//This function is used to view an existing product
+//Parameters should be provided as Query data through Postman
+/*
+Parameters:
+productcode string
+*/
+func viewProduct(c *gin.Context) {
+	code := c.Query("productcode")
+	for i := 0; i < len(data); i++ {
+		if data[i].ProductCode == code {
+			val := idealsort(code)
+			c.JSON(200, gin.H{
+				"Info":             data[i],
+				"Average Price":    average,
+				"Lowest Price":     low,
+				"Highest Price":    high,
+				"Ideal Price":      val,
+				"Prices Collected": priceCount,
+			})
+			return
+		}
+	}
+}
+
+func idealsort(code string) float32 {
+
+	for k := 1; k < len(collec[code]); k++ {
+		if err := collec[code][k-1] != 0; collec[code][k-1] > collec[code][k] && err {
+			temp := collec[code][k]
+			collec[code][k] = collec[code][k-1]
+			collec[code][k-1] = temp
+		}
+	}
+	var total int
+	for i := 2; i < len(collec[code])-2; i++ {
+		total = collec[code][i] + total
+	}
+	ideal := float32(total)
+	return ideal * 0.2
 }
